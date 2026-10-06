@@ -1,0 +1,144 @@
+# Backend stack: postgres + redis + api + worker. Self-contained -- nothing here
+# reaches outside backend/.
+#
+#   docker compose up              -> the whole backend
+#   docker compose up db redis     -> just the datastores, run the api/worker on the host
+#   docker compose up --build      -> after a dependency or Dockerfile change
+#
+# Every application setting comes from backend/.env (copy .env.example if you have
+# not). The only secret you must supply is OPENAI_API_KEY.
+#
+# Compose also reads backend/.env for ${...} interpolation in this file, because the
+# project directory is backend/. That is how POSTGRES_* and the *_HOST_PORT overrides
+# below can be set without touching this file.
+name: equity-research-agent-backend
+
+services:
+  db:
+    restart: unless-stopped
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-equity}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-equity}
+      POSTGRES_DB: ${POSTGRES_DB:-equity}
+    ports:
+      # Host port is a variable so you can dodge a postgres you already run on 5432,
+      # or line it up with the port your .env DATABASE_URL uses for native runs.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h forces the check over TCP. Without it pg_isready answers on the unix socket,
+      # which the throwaway server that the postgres image runs during first-boot
+      # initdb also listens on -- so the container would go healthy, dependents would
+      # start, and the real cluster would not be accepting connections yet.
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-equity} -d ${POSTGRES_DB:-equity}",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    # appendonly: the queue holds in-flight analyses, each of which costs real money to
+    # recompute; losing them to a restart is worse than the fsync overhead.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    restart: unless-stopped
+    build: .
+    env_file:
+      # The whole configuration surface -- models, auth, limits, LLM and embedding
+      # providers -- arrives from here. Adding a key to .env is enough to reach the
+      # container; no corresponding edit in this file is needed.
+      #
+      # required: false so a fresh clone comes up with no setup at all. Without the
+      # file every setting falls back to the defaults in src/config.py, which is a
+      # working system in offline mode: filings are fetched, every ratio and score is
+      # computed, the interface works. Copy .env.example to .env and add a key when you
+      # want the model-written parts.
+      - path: .env
+        required: false
+    environment:
+      # DATABASE_URL and REDIS_URL are repeated from .env on purpose. They are NOT
+      # redundant and must not be "cleaned up":
+      #
+      #   backend/.env points both at localhost, which is correct for running the api
+      #   natively against `docker compose up db redis`. Inside this network the
+      #   datastores answer only to the service names `db` and `redis`, and a container
+      #   dialling its own localhost finds nothing.
+      #
+      # Compose applies `environment` after `env_file`, so these win. (pydantic-settings
+      # in src/config.py agrees: real environment variables outrank its .env file.)
+      # Delete these two lines and the api cannot reach either datastore.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-equity}:${POSTGRES_PASSWORD:-equity}@db:5432/${POSTGRES_DB:-equity}
+      REDIS_URL: redis://redis:6379/0
+      # The api is the only container that migrates -- see docker-entrypoint.sh.
+      RUN_MIGRATIONS: "1"
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    restart: unless-stopped
+    build: .
+    command: ["arq", "src.worker.WorkerSettings"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Same override, same reason as the api above.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-equity}:${POSTGRES_PASSWORD:-equity}@db:5432/${POSTGRES_DB:-equity}
+      REDIS_URL: redis://redis:6379/0
+      # Migrations are the api's job. Two containers running `alembic upgrade head`
+      # against one database at the same moment is a lock fight one of them loses.
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        # service_healthy, not service_started -- this is what makes the worker wait
+        # for migrations. The api's entrypoint runs `alembic upgrade head` before it
+        # execs uvicorn, and the healthcheck only passes once uvicorn is serving, so a
+        # healthy api is proof the schema is current. service_started would only mean
+        # the container was created and would let the worker query a stale schema.
+        condition: service_healthy
+    healthcheck:
+      # This image carries a HEALTHCHECK that curls :8000/healthz. The worker runs arq,
+      # not uvicorn, so it would sit permanently unhealthy and drag down anything that
+      # waited on it. arq exposes no equivalent endpoint to probe instead.
+      disable: true
+    # Deliberately one worker, never `--scale worker=N`: WorkerSettings.max_jobs = 1
+    # because a 2 GB / 2 vCPU box runs postgres, the api and this together, and a
+    # second concurrent analysis doubles the peak memory of the EDGAR parse and the
+    # peer fetch for no throughput gain at this scale. Scaling the service would
+    # reintroduce exactly the concurrency max_jobs exists to prevent.
+
+volumes:
+  # Pinned names rather than the default <project>_pgdata. This stack runs under two
+  # different project names -- equity-research-agent-backend when started from here,
+  # equity-research-agent when included from the root compose file -- and both have to
+  # land on the same database rather than silently starting a second, empty one.
+  pgdata:
+    name: equity-research-agent-pgdata
+  redisdata:
+    name: equity-research-agent-redisdata

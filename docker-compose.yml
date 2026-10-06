@@ -1,0 +1,26 @@
+# The whole local stack, assembled from the two self-contained compose files rather
+# than duplicating their services here.
+#
+#   docker compose up            -> postgres + redis + api + worker + web
+#   docker compose up db redis   -> just the datastores, run the apps on the host
+#   docker compose up --build    -> after a dependency, Dockerfile or NEXT_PUBLIC_* change
+#
+# `include` (Compose v2.20+, v2.24.1 here) pulls each file in with its own directory as
+# the project directory, so backend's `build: .` still means backend/, its
+# `env_file: .env` still means backend/.env, and the same holds for frontend/. Both
+# files stay runnable on their own -- see the header of each.
+#
+# The only secret you must supply is OPENAI_API_KEY, in backend/.env.
+#
+# There is deliberately no `services:` block here adding `web.depends_on: api`.
+# Compose v2.24 rejects any redefinition of a service that arrived through `include`
+# ("services.web conflicts with imported resource"), from this file or from a
+# docker-compose.override.yml -- both were tried. It costs nothing: lib/api.ts runs in
+# the browser, so the web container never dials the api itself and has no startup-order
+# requirement on it. The api's own `depends_on` still holds the ordering that matters
+# (db and redis healthy -> api migrates -> worker starts).
+name: equity-research-agent
+
+include:
+  - backend/docker-compose.yml
+  - frontend/docker-compose.yml

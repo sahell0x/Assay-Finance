@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env*.local
+docs
+*.md
+.shoot.mjs
+.clip.mjs
+.live.mjs
+# Host build artifacts that must not leak into the image build context. The builder
+# stage does `COPY . .`, and a stale tsbuildinfo from the host can desync incremental
+# type-checking against a clean node_modules.
+*.tsbuildinfo
+docker-compose.yml

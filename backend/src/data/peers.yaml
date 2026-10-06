@@ -1,0 +1,110 @@
+# Static peer map. Used when the caller supplies no peers of their own.
+#
+# Grouped by industry rather than sector: "Technology" is not a comparable set, but
+# "semiconductors" is. Each group lists 8-12 large, liquid, US-listed names whose
+# financial shape is genuinely similar, because a percentile rank against an
+# incomparable cohort is worse than no rank at all.
+#
+# `match` entries are matched case-insensitively as substrings against the yfinance
+# industry string first, then the sector string.
+
+groups:
+  semiconductors:
+    match: [semiconductor]
+    tickers: [NVDA, AMD, INTC, AVGO, QCOM, TXN, MU, ADI, NXPI, MRVL, "ON", LRCX]  # quoted: bare ON is YAML for true
+
+  software_infrastructure:
+    match: [software - infrastructure, software infrastructure]
+    # Mature names first: a cohort of only high-growth security and data companies has
+    # no meaningful EV/EBITDA anywhere in it, which leaves the largest members of the
+    # industry with nothing to be compared against.
+    tickers: [MSFT, ORCL, SAP, IBM, ADBE, CRM, NOW, PANW, FTNT, CRWD, DDOG, NET]
+
+  software_application:
+    match: [software - application, software application, software]
+    tickers: [CRM, ADBE, INTU, NOW, WDAY, TEAM, HUBS, VEEV, ZM, DOCU, ADSK]
+
+  consumer_electronics:
+    match: [consumer electronics, communication equipment]
+    tickers: [AAPL, SONY, DELL, HPQ, LOGI, GRMN, CSCO, MSI, ANET, JBL]
+
+  internet_content:
+    match: [internet content, internet retail, electronic gaming]
+    tickers: [GOOGL, META, AMZN, NFLX, SPOT, PINS, SNAP, EBAY, ETSY, RBLX]
+
+  banks:
+    match: [banks, banks - diversified, banks - regional]
+    tickers: [JPM, BAC, WFC, C, USB, PNC, TFC, GS, MS, FITB, RF, KEY]
+
+  insurance:
+    match: [insurance]
+    tickers: [PGR, ALL, TRV, CB, AIG, MET, PRU, HIG, CINF, AFL]
+
+  asset_management:
+    match: [asset management, capital markets, financial data]
+    tickers: [BLK, BX, KKR, APO, TROW, BEN, SCHW, SPGI, MCO, MSCI]
+
+  pharmaceuticals:
+    match: [drug manufacturers, pharmaceutical]
+    tickers: [JNJ, PFE, MRK, LLY, ABBV, BMY, AMGN, GILD, VRTX, REGN, ZTS]
+
+  medical_devices:
+    match: [medical devices, medical instruments, diagnostics]
+    tickers: [ABT, MDT, SYK, BSX, BDX, ZBH, EW, ISRG, DXCM, BAX]
+
+  healthcare_plans:
+    match: [healthcare plans, medical care]
+    tickers: [UNH, ELV, CI, CVS, HUM, CNC, MOH, HCA, THC, UHS]
+
+  retail:
+    match: [discount stores, department stores, specialty retail, home improvement, apparel retail]
+    tickers: [WMT, COST, TGT, HD, LOW, TJX, ROST, DG, DLTR, BURL]
+
+  restaurants:
+    match: [restaurants]
+    tickers: [MCD, SBUX, CMG, YUM, DRI, DPZ, QSR, WEN, TXRH, SHAK]
+
+  beverages_packaged_foods:
+    match: [beverages, packaged foods, confectioners, household]
+    tickers: [KO, PEP, MDLZ, GIS, HSY, KHC, STZ, MNST, CAG, CL, PG]  # K dropped: Kellanova was taken private by Mars
+
+  oil_gas:
+    match: [oil & gas, oil and gas]
+    tickers: [XOM, CVX, COP, EOG, OXY, DVN, FANG, SLB, EQT]  # PXD, HES, MRO removed: acquired by XOM, CVX, COP
+
+  utilities:
+    match: [utilities, regulated electric, regulated gas]
+    tickers: [NEE, DUK, SO, D, AEP, EXC, SRE, XEL, ED, WEC, ES]
+
+  reits:
+    match: [reit, real estate]
+    tickers: [O, SPG, PLD, AMT, CCI, EQIX, PSA, DLR, VICI, AVB, EQR]
+
+  aerospace_defense:
+    match: [aerospace, defense]
+    tickers: [BA, LMT, RTX, NOC, GD, LHX, HWM, TDG, TXT, HEI]
+
+  industrials:
+    match: [specialty industrial, farm & heavy, industrial machinery, building products, conglomerates]
+    tickers: [HON, GE, CAT, DE, MMM, EMR, ETN, PH, ITW, ROK, CMI]
+
+  transport:
+    match: [integrated freight, railroads, airlines, trucking]
+    tickers: [UPS, FDX, UNP, CSX, NSC, ODFL, JBHT, DAL, UAL, LUV]
+
+  autos:
+    match: [auto manufacturers, auto parts]
+    tickers: [TSLA, GM, F, RIVN, LCID, STLA, HMC, TM, APTV, BWA, LEA]
+
+  telecom:
+    match: [telecom services, entertainment]
+    tickers: [T, VZ, TMUS, CMCSA, CHTR, DIS, WBD, PARA, LYV, FOXA]
+
+  chemicals_materials:
+    match: [chemicals, specialty chemicals, steel, copper, gold, packaging]
+    tickers: [LIN, APD, SHW, ECL, DOW, DD, PPG, NUE, FCX, NEM, IP]
+
+# Last resort when nothing matches: large, liquid names spanning the market. Better than
+# no comparison at all, and the analysis says explicitly that the cohort is generic.
+fallback:
+  tickers: [AAPL, MSFT, GOOGL, AMZN, JPM, JNJ, XOM, WMT, PG, UNH]

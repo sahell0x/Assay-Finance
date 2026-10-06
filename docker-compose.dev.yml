@@ -1,0 +1,170 @@
+# Development stack. Everything in containers, everything reloading on save.
+#
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# Nothing has to be installed on the host — no Python, no uv, no Node, no Postgres.
+# The source directories are bind-mounted into the containers and every process watches
+# them, so an edit on the host restarts the right service and nothing else.
+#
+# This is a separate file rather than an override because it is a genuinely different
+# shape: the production images bake the source in and run it as an unprivileged user,
+# which is correct for shipping and wrong for editing. Trying to express both in one
+# file with profiles makes both harder to read.
+name: equity-research-agent-dev
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: equity
+      POSTGRES_PASSWORD: equity
+      POSTGRES_DB: equity
+    ports:
+      # Published so you can point psql or a GUI at it. A different host port from the
+      # production compose file on purpose, so the two stacks can run side by side.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55433}:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U equity -d equity"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - redisdata-dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+    # --reload-dir keeps the watcher off site-packages; watching all of /app makes
+    # uvicorn restart on every .pyc and burn CPU for nothing.
+    command:
+      ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000",
+       "--reload", "--reload-dir", "/app/src"]
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://equity:equity@db:5432/equity
+      REDIS_URL: redis://redis:6379/0
+      RUN_MIGRATIONS: "1"
+      ENV: dev
+      # The frontend proxies /api to this service, so the browser only sees one origin.
+      FRONTEND_URL: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000
+      # Password-reset mail goes to Mailpit, a local inbox at http://localhost:8025.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_STARTTLS: "false"
+      SMTP_FROM: "Assay <no-reply@localhost>"
+    volumes:
+      # The source, live. Everything else comes from the image.
+      - ./backend/src:/app/src
+      - ./backend/alembic:/app/alembic
+      - ./backend/scripts:/app/scripts
+      - ./backend/tests:/app/tests
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    # Root, unlike production: a bind-mounted directory belongs to the host user, and
+    # the image's appuser cannot write the __pycache__ that reloading produces.
+    user: root
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  mailpit:
+    # Catches every email the dev stack sends. Nothing leaves this machine.
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+
+  worker:
+    build:
+      context: ./backend
+    # Every node of the analysis pipeline runs here, not in the api, so this is the
+    # container that has to reload when you edit a ratio or a prompt.
+    command: ["arq", "--watch", "src", "src.worker.WorkerSettings"]
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://equity:equity@db:5432/equity
+      REDIS_URL: redis://redis:6379/0
+      RUN_MIGRATIONS: "0"     # the api owns migrations
+      ENV: dev
+      # The image also carries an installed copy of src/ in site-packages. The `arq`
+      # console script puts /usr/local/bin, not /app, first on sys.path, so without this
+      # the worker imported that frozen copy and ignored every edit to the mounted
+      # source. uvicorn adds its working directory itself, which is why the api was fine.
+      PYTHONPATH: /app
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/scripts:/app/scripts
+    user: root
+    healthcheck:
+      disable: true           # arq serves no HTTP; see backend/docker-compose.yml
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      api: { condition: service_healthy }
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    # Install when the volume is cold OR when the lockfile has moved on. `npm ci`
+    # deletes node_modules before it installs, so running it unconditionally would pay a
+    # full reinstall on every restart of a container you restart often — but checking
+    # only for a missing directory meant a dependency added on the host never reached
+    # this volume, and the container died on an unresolvable import instead.
+    #
+    # npm writes node_modules/.package-lock.json on every install, so it is the honest
+    # record of what is actually in the volume; `-nt` compares it against the real one.
+    # The .next cache goes with them. Turbopack caches module resolution, so a build
+    # cache written before a dependency existed keeps reporting it as unresolvable long
+    # after it is installed — the error names the package and the package is right
+    # there, which costs an hour to work out. Reinstalling without clearing the cache is
+    # not a supported state, so the two are done together or not at all.
+    command: >
+      sh -c "if [ ! -e node_modules/.package-lock.json ] ||
+                 [ package-lock.json -nt node_modules/.package-lock.json ]; then
+               echo 'web: dependencies are stale, installing (a few minutes)';
+               npm ci --no-audit --no-fund &&
+               echo 'web: clearing the build cache the old dependencies were resolved against' &&
+               rm -rf .next/*;
+             fi;
+             npm run dev"
+    environment:
+      BACKEND_URL: http://api:8000     # where /api/* is proxied, server-side only
+      NEXT_PUBLIC_API_URL: /api        # relative: the browser sees one origin
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Bind mounts deliver inotify fine on Linux. On macOS or Windows they do not, and
+      # file changes will not trigger a rebuild — set WATCHPACK_POLLING=true there. It
+      # is off by default because polling wakes the CPU constantly.
+      WATCHPACK_POLLING: "${WATCHPACK_POLLING:-false}"
+    volumes:
+      - ./frontend:/app
+      # Named volumes so the container's node_modules and build cache are not
+      # overwritten by the host directory — and so a host without Node still works.
+      - webmodules:/app/node_modules
+      - webnext:/app/.next
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata-dev:
+  redisdata-dev:
+  webmodules:
+  webnext:

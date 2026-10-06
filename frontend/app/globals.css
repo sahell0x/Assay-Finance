@@ -1,0 +1,794 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* ==========================================================================
+   ONE PALETTE, TWO VOCABULARIES
+
+   The interface speaks two languages and they must not drift apart:
+
+   * shadcn's semantic tokens (background, card, primary, border, ring…), which
+     twenty-eight vendored components depend on and which we do not get to rename;
+   * this product's domain tokens (paper, ink, rule, buy/hold/sell), which say what a
+     thing *is* in equity research rather than what role it plays in a component.
+
+   Both are defined here, in one place, from the same set of raw values, so a colour
+   can never mean one thing to a Card and another to a metric table. Everything is
+   OKLCH: light and dark are the same hues at different lightness, which is why the
+   dark theme reads as the same product rather than as an inversion of it.
+
+   Two names collide with shadcn's and so are NOT aliased: `accent` (shadcn means a
+   hover surface by it, we meant the blue) and `muted` (shadcn means a surface, we
+   meant secondary text). Ours became `primary` and `muted-foreground`.
+   ========================================================================== */
+
+@custom-variant dark (&:is(.dark *));
+
+/* ASSAY — NEUTRAL. A research tool should get out of the way of its numbers, so the
+   chrome is colourless: white in light, true black in dark, hairline borders, black or
+   white buttons. Colour is spent in exactly one place — the verdict (green buy / strong,
+   amber hold / average, red sell / weak) — so when a page shows colour, it means
+   something. The gold of the logo is the only other hue, and it appears nowhere else. */
+:root {
+  --radius: 0.5rem;
+
+  --paper: #ffffff;
+  --surface: #fafafa;
+  --surface-sunk: #f4f4f5;
+  --surface-raised: #ffffff;
+  --ink: #0a0a0a;
+  --ink-soft: #2e2e2e;
+  --ink-muted: #6b6b6b; /* 5.3:1 */
+  --faint: #a1a1a1;
+  --rule: #ebebeb;
+  --rule-soft: #f2f2f2;
+  --subtle: #0a0a0a08;
+
+  --brand: #0a0a0a;
+  --brand-hover: #2b2b2b;
+  --brand-on: #ffffff;
+  --brand-wash: #f4f4f5;
+  --brand-edge: #d4d4d4;
+  --gold: #f2b84b;
+  --gold-soft: #ffd98c;
+  --highlight: transparent;
+  --mint: #f4f4f5;
+  --butter: #f4f4f5;
+
+  --buy: #15803d; /* 5.0:1 */
+  --buy-wash: #f0fdf4;
+  --hold: #b45309; /* 5.0:1 */
+  --hold-wash: #fffbeb;
+  --sell: #dc2626; /* 4.8:1 */
+  --sell-wash: #fef2f2;
+  --buy-fill: #22c55e;
+  --hold-fill: #f59e0b;
+  --sell-fill: #ef4444;
+
+  --chart-1: #2563eb;
+  --chart-2: #0d9488;
+  --chart-3: #ea580c;
+  --chart-4: #7c3aed;
+  --chart-5: #db2777;
+
+  --cascade-1: #d4d4d4;
+  --cascade-2: #a3a3a3;
+  --cascade-3: #525252;
+  --cascade-4: #0a0a0a;
+
+  --chart-peer: #c4c4c4;
+
+  --shadow-raise: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12);
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.04), 0 24px 48px -24px rgb(0 0 0 / 0.18);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-on);
+  --secondary: var(--surface-sunk);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-sunk);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-sunk);
+  --accent-foreground: var(--ink);
+  --destructive: var(--sell);
+  --border: var(--rule);
+  --input: #e4e4e4;
+  --ring: #a3a3a3;
+  --sidebar: var(--paper);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-on);
+  --sidebar-accent: var(--surface-sunk);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--rule);
+  --sidebar-ring: var(--ring);
+}
+
+/* Dark: true black. Cards are a step above it, borders a step above them, text is soft
+   white. No tint anywhere — a coloured dark ground is what makes a dark theme look
+   generated. */
+.dark {
+  color-scheme: dark;
+
+  --paper: #000000;
+  --surface: #0a0a0a;
+  --surface-sunk: #141414;
+  --surface-raised: #111111;
+  --ink: #ededed; /* 17.6:1 */
+  --ink-soft: #c7c7c7;
+  --ink-muted: #8f8f8f; /* 6.5:1 */
+  --faint: #5c5c5c;
+  --rule: #1f1f1f;
+  --rule-soft: #171717;
+  --subtle: #ffffff08;
+
+  --brand: #ededed;
+  --brand-hover: #ffffff;
+  --brand-on: #000000;
+  --brand-wash: #161616;
+  --brand-edge: #333333;
+  --mint: #141414;
+  --butter: #141414;
+
+  --buy: #22c55e;
+  --buy-wash: #04170b;
+  --hold: #fbbf24;
+  --hold-wash: #1a1405;
+  --sell: #f87171;
+  --sell-wash: #1c0a0a;
+  --buy-fill: #22c55e;
+  --hold-fill: #f59e0b;
+  --sell-fill: #ef4444;
+
+  --chart-1: #60a5fa;
+  --chart-2: #2dd4bf;
+  --chart-3: #fb923c;
+  --chart-4: #a78bfa;
+  --chart-5: #f472b6;
+
+  --cascade-1: #333333;
+  --cascade-2: #5c5c5c;
+  --cascade-3: #a3a3a3;
+  --cascade-4: #ededed;
+
+  --chart-peer: #3d3d3d;
+
+  --shadow-raise: none;
+  --shadow-float: 0 0 0 1px #1f1f1f, 0 16px 40px -20px rgb(0 0 0 / 0.9);
+  --shadow-lift: 0 0 0 1px #1f1f1f, 0 24px 60px -28px rgb(0 0 0 / 0.9);
+
+  --input: #262626;
+  --ring: #5c5c5c;
+}
+
+/* ==========================================================================
+   Tailwind theme. The domain names on the left are what page code writes.
+   ========================================================================== */
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-rule-soft: var(--rule-soft);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-wash: var(--brand-wash);
+  --color-brand-edge: var(--brand-edge);
+  --color-brand-on: var(--brand-on);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-highlight: var(--highlight);
+  --color-mint: var(--mint);
+  --color-butter: var(--butter);
+  --color-buy-fill: var(--buy-fill);
+  --color-hold-fill: var(--hold-fill);
+  --color-sell-fill: var(--sell-fill);
+  --color-faint: var(--faint);
+  --color-subtle: var(--subtle);
+
+  --color-buy: var(--buy);
+  --color-buy-wash: var(--buy-wash);
+  --color-hold: var(--hold);
+  --color-hold-wash: var(--hold-wash);
+  --color-sell: var(--sell);
+  --color-sell-wash: var(--sell-wash);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-peer: var(--chart-peer);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+
+  --shadow-raise: var(--shadow-raise);
+  --shadow-float: var(--shadow-float);
+  --shadow-lift: var(--shadow-lift);
+
+  /* Instrument Sans carries the interface: a crisp neutral grotesk with true tabular
+     figures, so a column of ratios still lines up. Newsreader sets the memo body only — the one
+     surface that is read rather than scanned. The system mono stack is for formulae,
+     which are code; it is never used for labels. */
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-heading: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  /* Two reading modes, so two anchors: 14 for the interface a non-specialist reads,
+     13 held back for inside tables where density is the point, 17 for the memo.
+     The top of the scale is where Swiss Ledger departs from the old design — a
+     composite score is the subject of its page, so it is set as a figure, not as a
+     heading. --text-figure is the only size that behaves that way. */
+  --text-micro: 0.75rem; /* 12 — units, axis ticks, footnotes */
+  --text-small: 0.8125rem; /* 13 — column headers, metadata, badges */
+  --text-cell: 0.875rem; /* 14 — inside data tables only */
+  --text-base: 0.9375rem; /* 15 — the workhorse */
+  --text-lead: 1.0625rem; /* 17 — intro paragraphs, card titles */
+  --text-memo: 1.125rem; /* 18 — serif body, 1.7 line-height, ≤66ch */
+  --text-section: 1.3125rem; /* 21 — panel and section headings */
+  --text-page: 1.75rem; /* 28 — page titles */
+  --text-display: 2.5rem; /* 40 — the landing headline */
+  --text-rating: 2.125rem; /* 34 — the rating word, beside the figure */
+  --text-figure: clamp(4.5rem, 11vw, 9.5rem); /* 72–152 — the composite score */
+  --text-ticker: clamp(2.75rem, 6.5vw, 5rem); /* 44–80 — the ticker as a title */
+
+  /* Magic UI marquee: the ticker tape under the landing hero. */
+  --animate-marquee: marquee var(--duration) infinite linear;
+  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(calc(-100% - var(--gap)));
+    }
+  }
+
+  @keyframes marquee-vertical {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(calc(-100% - var(--gap)));
+    }
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-family: var(--font-sans);
+    /* The header is sticky, so an anchor jump would otherwise land under it. */
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Tracking tightens as size grows: at 40px the default spacing reads loose and
+     unset, which is most of what makes a large heading look like a default. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+
+  h3,
+  h4 {
+    letter-spacing: -0.012em;
+    line-height: 1.3;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Links set in running text or as a lone "See all": actions are ink now, so an
+     underline is what tells a link from the words around it. Buttons are unaffected. */
+  a.text-primary,
+  a.text-brand,
+  button.text-primary,
+  p a.text-ink,
+  p a:not([class]) {
+    text-decoration: underline;
+    text-decoration-color: var(--brand-edge);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  a.text-primary:hover,
+  a.text-brand:hover,
+  button.text-primary:hover,
+  p a.text-ink:hover,
+  p a:not([class]):hover {
+    text-decoration-color: currentColor;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* A ticker field uppercases what is typed, but the placeholder is a sentence and
+     must not be shouted. */
+  input::placeholder {
+    text-transform: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--gold) 32%, transparent);
+    color: var(--foreground);
+  }
+
+  select option,
+  select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
+}
+
+/* Numbers. Every digit in the interface goes through this. Ragged digit columns are
+   the fastest way to make a financial interface look amateur. */
+.nums {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* ==========================================================================
+   Structural devices. Borders and rules encode meaning; there are only a few.
+   ========================================================================== */
+
+/* A section of the page, not a card. Swiss Ledger builds with rules: a full-strength
+   rule says "a new thing starts here", and the content hangs beneath it. A bordered,
+   filled, rounded box around every group is how an interface ends up looking like a
+   settings screen — and with eight of them on the analysis page it read as one.
+
+   Where a container genuinely has to float above the page — a popover, a dialog — use
+   `.panel-boxed`, which is the old treatment and is still correct there. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+}
+
+.panel-boxed {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+}
+
+/* In the components layer so a utility on a cell (text-right, !pl-0) wins over these
+   defaults. Unlayered, `text-align: left` here silently beat every `text-right` on a
+   header, which left column titles sitting away from their numbers. */
+@layer components {
+/* A table inside a panel keeps its first and last columns off the rounded edge, even
+   where the table was written flush (!pl-0) for the open page. Important and in this
+   layer, so it outranks that utility: for !important, earlier layers win. */
+.panel .data-table th:first-child,
+.panel .data-table td:first-child {
+  padding-left: 16px !important;
+}
+
+.panel .data-table th:last-child,
+.panel .data-table td:last-child {
+  padding-right: 16px !important;
+}
+
+/* Table chrome. A rule under the header separates labels from data; the zebra is the
+   only other horizontal signal, and it is nearly invisible. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-cell);
+}
+
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-size: var(--text-small);
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+.data-table tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.num-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  white-space: nowrap;
+  color: var(--ink);
+}
+}
+
+/* ==========================================================================
+   Swiss Ledger furniture. A section is a numbered band under a full-strength rule,
+   with its title flush left and its metadata flush right. There are no boxes.
+   ========================================================================== */
+
+.band {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.25rem;
+}
+
+.band-hair {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.25rem;
+}
+
+/* A small uppercase mono label. Column headers, section metadata, units, eyebrows —
+   anything that names a thing rather than being the thing. */
+.mono-label {
+  /* Kept under its old name for the call sites. It is no longer mono or capitals:
+     sentence-case labels are what a non-specialist can read at a glance. */
+  font-size: var(--text-small);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.sec-num {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.06em;
+  color: var(--brand);
+}
+
+.sec-title {
+  font-size: var(--text-lead);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* The composite score, set as a figure rather than a heading. Tight, heavy, and
+   allowed to be the largest thing on the page, because it is the subject of it. */
+.figure {
+  font-size: var(--text-figure);
+  font-weight: 700;
+  line-height: 0.76;
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.figure sup {
+  font-size: 0.19em;
+  font-weight: 400;
+  vertical-align: 1.55em;
+  margin-left: 0.06em;
+  letter-spacing: -0.01em;
+  color: var(--ink-muted);
+}
+
+/* The ticker, used as the page title. */
+.ticker-title {
+  font-size: var(--text-ticker);
+  font-weight: 600;
+  line-height: 0.85;
+  letter-spacing: -0.055em;
+}
+
+/* A formula, and the statement lines that fed it. This is code and is set as code. */
+.formula {
+  font-family: var(--font-mono);
+  font-size: var(--text-cell);
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* An unavailable value. Never 0, never blank, never NaN. */
+.absent {
+  color: var(--ink-muted);
+  cursor: help;
+  border-bottom: 1px dotted var(--rule);
+}
+
+/* ==========================================================================
+   Memo prose. The only serif in the product: this is the part that gets read rather
+   than scanned, and the change of voice is the point.
+   ========================================================================== */
+
+.memo-prose {
+  font-family: var(--font-serif);
+  font-size: var(--text-memo);
+  line-height: 1.72;
+  color: var(--ink);
+  max-width: 66ch;
+}
+
+.memo-prose p + p {
+  margin-top: 0.9em;
+}
+
+/* A citation marker. Small, quiet, clickable — it is a reference, not a decoration,
+   and it scrolls to the source. */
+.cite {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.66em;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.35em;
+  color: var(--ink-soft);
+  padding: 0 1px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--brand-edge);
+  text-underline-offset: 2px;
+}
+
+.cite:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Motion. One orchestrated moment (the pipeline, and the score settling when a
+   company is chosen) and responses to actions. Nothing else animates.
+   ========================================================================== */
+
+@keyframes node-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes strip-open {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.node-active {
+  animation: node-pulse 1.4s ease-in-out infinite;
+}
+
+.strip-open {
+  animation: strip-open 120ms ease-out;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--rule-soft);
+  border-radius: 3px;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--surface) 70%, transparent),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   Scrollbars inside dense regions — thin, so a table that scrolls horizontally does
+   not gain a heavy grey bar across it.
+   ========================================================================== */
+
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+.thin-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 4px;
+}
+
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Recharts overrides. The defaults are instantly recognisable, so every one of them is
+   replaced at the source rather than fought per-chart. */
+.recharts-cartesian-axis-tick-value {
+  font-size: 11px;
+  fill: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.recharts-surface:focus,
+.recharts-wrapper:focus {
+  outline: none;
+}
+
+.recharts-default-tooltip {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Neutral furniture.
+   ========================================================================== */
+
+/* Formerly a highlighter; in the neutral system emphasis is the type itself. */
+.mark {
+  background: none;
+}
+
+/* A quiet label chip with a status dot: "● 3 free reports, no sign-up". */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-muted);
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.pill > span:first-child {
+  background: var(--buy-fill) !important;
+}
+
+/* A bordered card: the report card and everything shaped like it. */
+.card-soft {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  box-shadow: var(--shadow-float);
+}
+
+/* Decorative shapes are retired; kept as a class so old markup renders nothing. */
+.blob {
+  display: none !important;
+}
+/* A tape that never stops is the one animation reduced motion must switch off. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-marquee-vertical {
+    animation: none;
+  }
+}
+
+/* Lenis owns scrolling on the landing page; these are its documented base rules. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
