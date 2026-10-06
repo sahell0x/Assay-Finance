@@ -7,8 +7,6 @@ BUY/HOLD/SELL recommendation and a citation behind every claim it makes about th
 The language model writes the argument; it never produces a number and never chooses the
 rating.
 
-![The memo view](docs/screenshots/memo.png)
-
 ---
 
 ## The one design decision that shapes everything else
@@ -94,8 +92,6 @@ Two orderings are load-bearing:
   weakness; net debt is above three turns of EBITDA, so search for refinancing and
   covenants; margins compressed, so search for input costs. A retrieval stage that does not
   know revenue fell cannot go looking for the reason.
-
-![The profitability tab](docs/screenshots/profitability.png)
 
 ---
 
@@ -403,8 +399,6 @@ to compute a fresh one.
 The signup prompt appears *after* the third result has rendered, never before the first —
 gating before output leaves a visitor with nothing to evaluate. Signing up migrates their
 history across.
-
-![The trace tab](docs/screenshots/trace.png)
 
 ---
 
