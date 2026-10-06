@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 /** The whole reset journey, reading the real email from Mailpit (the dev stack's local
  *  inbox). Skipped when Mailpit is not running. */
 const MAILPIT = "http://localhost:8025";
+const API = process.env.E2E_API_URL ?? "http://localhost:8000";
 
 async function latestResetLink(request: import("@playwright/test").APIRequestContext, email: string) {
   for (let i = 0; i < 20; i++) {
@@ -28,7 +29,7 @@ test("forgot password: email link sets a new password that then signs in", async
   const newPassword = "second-password-456";
 
   // An account to reset, then signed out again.
-  const reg = await request.post("/api/auth/register", { data: { email, password: firstPassword } });
+  const reg = await request.post(`${API}/auth/register`, { data: { email, password: firstPassword } });
   expect(reg.status()).toBe(201);
 
   await page.goto("/login");

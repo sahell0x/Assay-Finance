@@ -94,11 +94,8 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
     frontend_url: str = "http://localhost:3000"
     cookie_secure: bool = False
-    # The API's PUBLIC base, as a browser sees it. Blank derives "{frontend_url}/api",
-    # which is correct in single-origin mode. It exists because the OAuth redirect URI
-    # has to be the address Google can reach, and inside the container the app is
-    # mounted at "/" with no idea it is served under a "/api" prefix.
-    api_public_url: str = ""
+    # The API's public base, as a browser sees it.
+    api_public_url: str = "http://localhost:8000"
 
     # ---- limits ----------------------------------------------------------
     daily_cap_usd: float = 3.00
@@ -220,9 +217,7 @@ class Settings(BaseSettings):
     @property
     def public_api_base(self) -> str:
         """Public base URL of the API, without a trailing slash."""
-        if self.api_public_url.strip():
-            return self.api_public_url.strip().rstrip("/")
-        return f"{self.frontend_url.rstrip('/')}/api"
+        return self.api_public_url.strip().rstrip("/")
 
     @property
     def oauth_redirect_url(self) -> str:

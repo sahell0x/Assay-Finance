@@ -9,14 +9,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Baked into the bundle at build time, so it must be present here rather than at runtime.
-ARG NEXT_PUBLIC_API_URL=/api
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-# BACKEND_URL is needed at BUILD time too, which is easy to miss because it never
-# reaches the browser. `rewrites()` in next.config.ts is evaluated by `next build` and
-# serialised into .next/routes-manifest.json; a value supplied only at runtime arrives
-# after that file is already written, so the /api/* proxy is built with zero rules and
-# every call through it 404s while the backend itself is perfectly healthy.
-# It stays a runtime variable as well, for the server's own fetches.
+# BACKEND_URL is used by server-rendered fetches. In the root compose stack, "api" is
+# the backend service name on the Docker network.
 ARG BACKEND_URL=http://api:8000
 ENV BACKEND_URL=$BACKEND_URL
 ENV NEXT_TELEMETRY_DISABLED=1

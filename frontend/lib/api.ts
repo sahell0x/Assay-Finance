@@ -27,25 +27,14 @@ import type {
   WatchlistEntry,
 } from "./types";
 
-/** The base the BROWSER uses.
- *
- *  May be relative ("/api"), which is the point: with the rewrite in next.config.ts the
- *  API is served from this same origin, so there is no CORS preflight, no cookie Domain
- *  attribute to get right, and — because it never varies — no rebuild between
- *  environments even though NEXT_PUBLIC_* is inlined at build time.
- */
+/** The public API base the browser uses. */
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
 
-/** The base the SERVER uses, which must be absolute.
- *
- *  Server components fetch during render, where "/api" has nothing to resolve against.
- *  In single-origin mode this is the only place the backend's real address is needed,
- *  and it is never shipped to the browser.
- */
+/** The API base the Next server uses for server-rendered fetches. */
 export const SERVER_API_URL =
   process.env.BACKEND_URL?.replace(/\/$/, "") ||
-  (API_URL.startsWith("http") ? API_URL : "http://localhost:8000");
+  API_URL;
 
 export class ApiError extends Error {
   constructor(

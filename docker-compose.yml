@@ -15,10 +15,10 @@
 # There is deliberately no `services:` block here adding `web.depends_on: api`.
 # Compose v2.24 rejects any redefinition of a service that arrived through `include`
 # ("services.web conflicts with imported resource"), from this file or from a
-# docker-compose.override.yml -- both were tried. It costs nothing: lib/api.ts runs in
-# the browser, so the web container never dials the api itself and has no startup-order
-# requirement on it. The api's own `depends_on` still holds the ordering that matters
-# (db and redis healthy -> api migrates -> worker starts).
+# docker-compose.override.yml -- both were tried. The api's own `depends_on` still
+# holds the ordering that matters (db and redis healthy -> api migrates -> worker
+# starts). The frontend can start independently and will reach the API through
+# BACKEND_URL when handling server-rendered requests.
 name: equity-research-agent
 
 include:

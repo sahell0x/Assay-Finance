@@ -19,12 +19,12 @@ test("session endpoint without cookies returns null", async ({ playwright }) => 
 });
 
 test("public analysis payload hides cost and trace data", async ({ request }) => {
-  const showcase = await request.get("/api/public/showcase?limit=1");
+  const showcase = await request.get(`${API}/public/showcase?limit=1`);
   expect(showcase.ok()).toBeTruthy();
   const cards = (await showcase.json()) as { id: string }[];
   test.skip(!Array.isArray(cards) || cards.length === 0, "showcase is empty");
 
-  const res = await request.get(`/api/analyses/${cards[0].id}`);
+  const res = await request.get(`${API}/analyses/${cards[0].id}`);
   expect(res.status()).toBe(200);
   const body = await res.json();
   expect(body).not.toHaveProperty("cost_usd");

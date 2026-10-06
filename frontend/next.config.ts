@@ -32,21 +32,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-
-  // Single-origin mode. With BACKEND_URL set, this server proxies /api/* to the backend,
-  // so the browser only ever talks to one origin. That removes three things that are
-  // easy to get wrong in production and impossible to test properly in development:
-  // CORS preflight, the cookie Domain attribute across subdomains, and rebuilding the
-  // bundle whenever the API address changes (NEXT_PUBLIC_* is inlined at build time, so
-  // a relative "/api" is the only value that never needs one).
-  //
-  // Leave BACKEND_URL unset to talk to the backend directly instead, which is the
-  // simpler thing when you are only running the API on localhost.
-  async rewrites() {
-    const backend = process.env.BACKEND_URL?.replace(/\/$/, "");
-    if (!backend) return [];
-    return [{ source: "/api/:path*", destination: `${backend}/:path*` }];
-  },
 };
 
 export default nextConfig;

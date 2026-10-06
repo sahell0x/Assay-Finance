@@ -102,7 +102,7 @@ You need Docker and an API key. Nothing else.
 ```bash
 git clone <this-repo> && cd equity-research-agent
 cp backend/.env.example backend/.env      # then put your key in it
-cp frontend/.env.example frontend/.env.local
+cp frontend/.env.example frontend/.env
 docker compose up --build
 ```
 
@@ -137,34 +137,80 @@ deliberately re-stated in `environment:` so they resolve to the compose service 
 because the values in `.env` point at localhost for running natively.
 
 To point the frontend at a different API you must **rebuild**, not restart —
-`NEXT_PUBLIC_*` is inlined into the JavaScript bundle at build time:
-
-```bash
-NEXT_PUBLIC_API_URL=https://api.example.com docker compose up --build
-```
+`NEXT_PUBLIC_*` is inlined into the JavaScript bundle at build time. Put that value in
+`frontend/.env` rather than passing it on the command line.
 
 ### Deploying
 
-The frontend proxies `/api/*` to the backend, so the browser only ever sees one origin.
-That is what keeps the local and production configurations nearly identical: no CORS
-preflight, no cookie `Domain` attribute across subdomains, and — because
-`NEXT_PUBLIC_API_URL` is the constant `/api` — no rebuild when the API address changes.
+Production runs with two public subdomains on the same server:
 
-Going to production is **six lines in `backend/.env`** and one DNS record. For an app at
-`https://equity.sahell.in`:
+```text
+https://app.xyz.in  -> frontend container on port 3000
+https://api.xyz.in  -> backend container on port 8000
+```
+
+Create the backend env file:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Set these in `backend/.env`:
 
 ```ini
 ENV=prod
+OPENAI_API_KEY=...
 AUTH_SECRET=<openssl rand -hex 32>
 IP_HASH_SALT=<openssl rand -hex 16>
 COOKIE_SECURE=true
-CORS_ORIGINS=https://equity.sahell.in
-FRONTEND_URL=https://equity.sahell.in
+COOKIE_DOMAIN=.xyz.in
+CORS_ORIGINS=https://app.xyz.in
+FRONTEND_URL=https://app.xyz.in
+API_PUBLIC_URL=https://api.xyz.in
+API_HOST_PORT=8000
 ```
 
-Everything else — models, providers, limits, `COOKIE_DOMAIN`, `NEXT_PUBLIC_API_URL` — is
-unchanged. Then point a reverse proxy with TLS at the `web` container on port 3000 and
-run `make doctor`, which fails the run if any of the six is wrong.
+Create the frontend env file:
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+Set these in `frontend/.env`:
+
+```ini
+NEXT_PUBLIC_API_URL=https://api.xyz.in
+BACKEND_URL=http://api:8000
+WEB_HOST_PORT=3000
+```
+
+Start everything from the repo root:
+
+```bash
+docker compose up -d --build
+```
+
+The root compose file starts Postgres, Redis, the API, the worker and the frontend
+together. Point Nginx like this:
+
+```text
+app.xyz.in  -> http://127.0.0.1:3000
+api.xyz.in  -> http://127.0.0.1:8000
+```
+
+Because `NEXT_PUBLIC_API_URL` is baked into the frontend build, rebuild the frontend
+container after changing `frontend/.env`:
+
+```bash
+docker compose up -d --build web
+```
+
+After deploy, check the containers and logs:
+
+```bash
+docker compose ps
+docker compose logs -f --tail=100
+```
 
 **The server refuses to start in production without a real `AUTH_SECRET`** (32+ random
 characters, not the example placeholder): sessions are signed with it, and a guessable
@@ -224,7 +270,7 @@ RAZORPAY_WEBHOOK_SECRET=...         # the secret you type when adding the webhoo
 ```
 
 Then add a test-mode webhook in the Razorpay dashboard pointing at
-`https://YOUR-DOMAIN/api/billing/webhook` for the `payment.captured` and `order.paid`
+`https://api.xyz.in/billing/webhook` for the `payment.captured` and `order.paid`
 events, and run `make migrate` (migration `0003` adds the credit tables). To pay, use
 card `4111 1111 1111 1111` with any future expiry and CVV, or the UPI id
 `success@razorpay`.

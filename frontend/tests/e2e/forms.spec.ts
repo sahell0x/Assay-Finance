@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-/* Only free flows here. POST /api/analyses with "APPLE" is refused by the API before
+/* Only free flows here. POST /analyses with "APPLE" is refused by the API before
  * anything is charged (unknown_ticker); nothing in this file submits a real ticker. */
 
 test("a company name typed as a ticker is refused with suggestions", async ({ page }) => {

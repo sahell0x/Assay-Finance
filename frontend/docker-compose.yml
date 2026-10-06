@@ -1,15 +1,9 @@
 # Frontend only: the Next server, nothing else.
 #
 #   docker compose up --build
-#   NEXT_PUBLIC_API_URL=https://api.example.com docker compose up --build
 #
-# By default this runs in single-origin mode: the browser only ever talks to this
-# server, which proxies /api/* through to the backend (see rewrites() in
-# next.config.ts). That is what removes CORS and the cookie-domain question from
-# production entirely, and it means the same build runs in every environment.
-#
-# Run it alone by pointing BACKEND_URL at wherever the backend is:
-#   BACKEND_URL=http://localhost:8000 docker compose up --build
+# Put NEXT_PUBLIC_API_URL, BACKEND_URL and WEB_HOST_PORT in frontend/.env. In production
+# the browser calls the backend subdomain directly, for example https://api.xyz.in.
 name: equity-research-agent-frontend
 
 services:
@@ -26,24 +20,12 @@ services:
         #
         # The corollary: pointing the app at a different API requires a rebuild, not a
         # restart. `docker compose up --build`.
-        # Defaults to the relative "/api", which is the single most useful value it can
-        # have: the browser then talks only to this origin, so there is no CORS
-        # preflight and no cookie Domain attribute to get right — and because it never
-        # varies between environments, the build-time inlining stops mattering. The
-        # proxying is set up by `rewrites()` in next.config.ts.
-        #
-        # Set it to an absolute URL instead to have the browser call the backend
-        # directly, which then requires that origin in the backend's CORS_ORIGINS.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
-        # Also a build argument, and for a less obvious reason than the one above: it
-        # never reaches the browser, but `rewrites()` runs during `next build` and its
-        # result is frozen into routes-manifest.json. Supplied only at runtime, the
-        # /api/* proxy is built empty and every request through it 404s.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        # Server-side fetches use the Docker service name when the stack is started
+        # from the repo root.
         BACKEND_URL: ${BACKEND_URL:-http://api:8000}
     environment:
       # The same value at runtime, for this server's own server-rendered fetches.
-      # Note it is ALSO a build argument above — the proxy rules are baked in by
-      # `next build`, so changing where the backend lives is a rebuild, not a restart.
       # Under the root compose file the api service is on the same network and answers
       # to `api`; on its own, point this at wherever the backend actually is.
       BACKEND_URL: ${BACKEND_URL:-http://api:8000}
