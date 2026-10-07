@@ -87,7 +87,7 @@ async def clean_db(db_engine):
             text(
                 "TRUNCATE analyses, analysis_events, evidence, usage_ledger, "
                 "watchlists, watchlist_items, credit_transactions, credit_purchases, "
-                "accounts, users, news_chunks "
+                "accounts, users, news_chunks, signup_otps "
                 "RESTART IDENTITY CASCADE"
             )
         )
@@ -119,6 +119,7 @@ async def client(db_engine, session_factory, clean_db, monkeypatch) -> AsyncIter
     import src.worker as worker_module
 
     monkeypatch.setattr(worker_module, "enqueue_analysis", fake_enqueue, raising=False)
+    monkeypatch.setattr(settings, "require_email_verification", False)
     app.dependency_overrides[get_session] = override_get_session
 
     # base_url must match COOKIE_DOMAIN ("localhost" by default): httpx will not store

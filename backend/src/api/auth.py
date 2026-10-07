@@ -12,11 +12,15 @@ development setup possible without registering an OAuth client.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
+import secrets
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi_users import (
     BaseUserManager,
@@ -36,11 +40,15 @@ from fastapi_users.router.oauth import (
 from httpx_oauth.clients.google import GoogleOAuth2
 from httpx_oauth.exceptions import GetIdEmailError
 from pydantic import ConfigDict
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..db.models import OAuthAccount, User
+from ..core.email_templates import render_otp_email
+from ..core.mail import send_email
+from ..db.models import OAuthAccount, SignupOTP, User
 from ..db.session import get_session
+from .schemas import OTPSendRequest, OTPVerifyRequest
 
 log = logging.getLogger(__name__)
 
@@ -278,6 +286,243 @@ async def session(user: User | None = Depends(current_user_optional)) -> UserRea
     return UserRead.model_validate(user) if user else None
 
 
+otp_router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@otp_router.post("/otp/send", status_code=200)
+async def send_signup_otp(
+    payload: OTPSendRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate and dispatch an email verification OTP code."""
+    email = payload.email.strip().lower()
+
+    existing = await session.scalar(
+        select(User.id).where(func.lower(User.email) == email)
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "EMAIL_ALREADY_EXISTS",
+                "message": "An account already exists for that address. Sign in instead.",
+            },
+        )
+
+    recent_otp = await session.scalar(
+        select(SignupOTP)
+        .where(SignupOTP.email == email)
+        .order_by(SignupOTP.created_at.desc())
+        .limit(1)
+    )
+    now = datetime.now(UTC)
+    cooldown = settings.otp_resend_cooldown_seconds
+    if recent_otp:
+        created_at = recent_otp.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        elapsed = (now - created_at).total_seconds()
+        if elapsed < cooldown:
+            remaining = max(1, int(cooldown - elapsed))
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "RATE_LIMITED",
+                    "message": f"Please wait {remaining} seconds before requesting another code.",
+                },
+            )
+
+    code = f"{secrets.randbelow(900000) + 100000:06d}"
+    otp_hash = hashlib.sha256(f"{settings.auth_secret}:{email}:{code}".encode()).hexdigest()
+    expires_at = now + timedelta(minutes=settings.otp_expire_minutes)
+
+    await session.execute(delete(SignupOTP).where(SignupOTP.email == email))
+    new_otp = SignupOTP(
+        email=email,
+        otp_hash=otp_hash,
+        expires_at=expires_at,
+        attempts=0,
+    )
+    session.add(new_otp)
+    await session.commit()
+
+    text_content, html_content = render_otp_email(code, email)
+    subject = f"Your Assay verification code: {code}"
+    sent = await send_email(to=email, subject=subject, text=text_content, html=html_content)
+
+    if not sent and settings.smtp_host:
+        log.error("Failed to send verification email to %s via configured SMTP", email)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "MAIL_DELIVERY_FAILED",
+                "message": "Could not send verification email. Please check your SMTP settings or try again.",
+            },
+        )
+
+    if not settings.smtp_host:
+        log.info("[DEV OTP] Verification code for %s is %s", email, code)
+
+    return {
+        "status": "ok",
+        "message": f"Verification code sent to {email}.",
+    }
+
+
+@otp_router.post("/otp/verify", response_model=UserRead, status_code=201)
+async def verify_signup_otp(
+    payload: OTPVerifyRequest,
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """Verify OTP, create the verified user account, and issue session cookie."""
+    email = payload.email.strip().lower()
+    password = payload.password
+    code = payload.otp.strip()
+
+    dummy_user = User(email=email)
+    try:
+        await user_manager.validate_password(password, dummy_user)
+    except InvalidPasswordException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "REGISTER_INVALID_PASSWORD",
+                "message": exc.reason,
+            },
+        ) from exc
+
+    existing = await session.scalar(
+        select(User.id).where(func.lower(User.email) == email)
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "EMAIL_ALREADY_EXISTS",
+                "message": "An account already exists for that address. Sign in instead.",
+            },
+        )
+
+    otp_record = await session.scalar(
+        select(SignupOTP)
+        .where(SignupOTP.email == email)
+        .order_by(SignupOTP.created_at.desc())
+        .limit(1)
+    )
+    if not otp_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_NOT_FOUND",
+                "message": "No verification code requested for this email. Please request a code first.",
+            },
+        )
+
+    now = datetime.now(UTC)
+    expires_at = otp_record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+
+    if expires_at < now:
+        await session.execute(delete(SignupOTP).where(SignupOTP.email == email))
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_EXPIRED",
+                "message": "Verification code has expired. Please request a new one.",
+            },
+        )
+
+    if otp_record.attempts >= 5:
+        await session.execute(delete(SignupOTP).where(SignupOTP.email == email))
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_MAX_ATTEMPTS",
+                "message": "Too many invalid attempts. Please request a new code.",
+            },
+        )
+
+    expected_hash = hashlib.sha256(f"{settings.auth_secret}:{email}:{code}".encode()).hexdigest()
+    if not hmac.compare_digest(otp_record.otp_hash, expected_hash):
+        otp_record.attempts += 1
+        await session.commit()
+        remaining = max(0, 5 - otp_record.attempts)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_INVALID",
+                "message": f"Incorrect verification code. {remaining} attempt(s) remaining.",
+            },
+        )
+
+    await session.execute(delete(SignupOTP).where(SignupOTP.email == email))
+
+    user_create = UserCreate(
+        email=email,
+        password=password,
+        name=payload.name,
+    )
+    try:
+        user = await user_manager.create(user_create, safe=False, request=request)
+    except Exception as exc:
+        log.error("Failed to create user during OTP verify: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not create user account.",
+        ) from exc
+
+    user.is_verified = True
+    await user_manager.user_db.update(user, {"is_verified": True})
+    await session.commit()
+
+    strategy = get_jwt_strategy()
+    token = await strategy.write_token(user)
+    cookie_transport._set_login_cookie(response, token)
+
+    return UserRead.model_validate(user)
+
+
+@otp_router.post("/register", response_model=UserRead, status_code=201)
+async def register(
+    request: Request,
+    user_create: UserCreate,
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """Direct registration endpoint. When verification is required, directs users to OTP."""
+    dummy_user = User(email=user_create.email)
+    try:
+        await user_manager.validate_password(user_create.password, dummy_user)
+    except InvalidPasswordException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "REGISTER_INVALID_PASSWORD",
+                "reason": exc.reason,
+            },
+        ) from exc
+
+    if settings.require_email_verification:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_REQUIRED",
+                "message": "Email verification is required. Please use the OTP verification flow.",
+            },
+        )
+
+    try:
+        created_user = await user_manager.create(user_create, safe=True, request=request)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return UserRead.model_validate(created_user)
+
+
 def mount_auth(app) -> None:
     """Attach every auth router the configuration supports."""
     app.add_api_route(
@@ -288,9 +533,7 @@ def mount_auth(app) -> None:
         prefix="/auth",
         tags=["auth"],
     )
-    app.include_router(
-        fastapi_users.get_register_router(UserRead, UserCreate), prefix="/auth", tags=["auth"]
-    )
+    app.include_router(otp_router)
     app.include_router(fastapi_users.get_reset_password_router(), prefix="/auth", tags=["auth"])
     app.include_router(
         fastapi_users.get_users_router(UserRead, UserUpdate), prefix="/users", tags=["users"]

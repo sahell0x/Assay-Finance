@@ -241,6 +241,23 @@ export const api = {
       body: JSON.stringify({ email, password, name }),
     }),
 
+  sendSignupOtp: (email: string) =>
+    request<{ status: string; message: string }>("/auth/otp/send", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  verifySignupOtp: (payload: {
+    email: string;
+    password: string;
+    otp: string;
+    name?: string;
+  }) =>
+    request<CurrentUser>("/auth/otp/verify", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   /** Always resolves, whether or not the address has an account: telling the two
    *  apart would let anyone check which emails are registered. */
   forgotPassword: (email: string) =>

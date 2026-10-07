@@ -196,3 +196,39 @@ class HistoryPoint(BaseModel):
     total: float | None
     rating: str | None
     dimension_scores: dict[str, Any] | None = None
+
+
+class OTPSendRequest(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def _clean_email(cls, v: str) -> str:
+        v = (v or "").strip().lower()
+        if not v or "@" not in v or "." not in v.split("@")[-1]:
+            raise ValueError("Enter a valid email address.")
+        return v
+
+
+class OTPVerifyRequest(BaseModel):
+    email: str
+    password: str
+    otp: str
+    name: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def _clean_email(cls, v: str) -> str:
+        v = (v or "").strip().lower()
+        if not v or "@" not in v or "." not in v.split("@")[-1]:
+            raise ValueError("Enter a valid email address.")
+        return v
+
+    @field_validator("otp")
+    @classmethod
+    def _clean_otp(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v.isdigit() or len(v) != 6:
+            raise ValueError("Enter a 6-digit verification code.")
+        return v
+

@@ -119,6 +119,29 @@ class Session(Base):
     expires: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class SignupOTP(Base):
+    """Pending email verification for signup.
+
+    OTPs are salted with ``settings.auth_secret`` before being stored, so a database
+    dump does not leak usable codes. Rows are cleaned up upon successful registration
+    or upon expiry.
+    """
+
+    __tablename__ = "signup_otps"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+    otp_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+
 class Analysis(Base):
     __tablename__ = "analyses"
 

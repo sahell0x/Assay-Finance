@@ -1,3 +1,4 @@
+import { LandingAuthRedirect } from "@/components/landing/auth-redirect";
 import { Capabilities } from "@/components/landing/capabilities";
 import { ClosingCta } from "@/components/landing/closing-cta";
 import { Faq } from "@/components/landing/faq";
@@ -30,6 +31,7 @@ export default async function LandingPage() {
 
   return (
     <>
+      <LandingAuthRedirect />
       <SmoothScroll />
       <Hero cards={cards} />
       <TickerTape cards={cards} />

@@ -74,9 +74,9 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
-    # Outgoing email (password reset). Any SMTP provider works: Postmark, SES, Resend,
-    # Mailgun, Gmail. Leave SMTP_HOST blank and the reset link is written to the log
-    # instead, which is enough for development.
+    # Outgoing email (password reset & signup OTP). Any SMTP provider works: Gmail,
+    # Postmark, SES, Resend. Leave SMTP_HOST blank and verification codes are written
+    # to the log instead, which is enough for development.
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     smtp_from: str = "Assay <no-reply@localhost>"
     smtp_starttls: bool = True  # port 587. For port 465 set SMTP_SSL=true instead.
     smtp_ssl: bool = False
+    require_email_verification: bool = True
+    otp_expire_minutes: int = 10
+    otp_resend_cooldown_seconds: int = 60
 
     # Error monitoring. Set SENTRY_DSN to report crashes to Sentry; blank disables it.
     sentry_dsn: str = ""

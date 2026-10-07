@@ -30,7 +30,9 @@ def _send_sync(msg: EmailMessage) -> None:
         if settings.smtp_starttls and not settings.smtp_ssl:
             server.starttls(context=context)
         if settings.smtp_user:
-            server.login(settings.smtp_user, settings.smtp_password)
+            # Strip spaces commonly present in Google App Passwords (e.g. "abcd efgh ijkl mnop")
+            clean_password = (settings.smtp_password or "").replace(" ", "")
+            server.login(settings.smtp_user, clean_password)
         server.send_message(msg)
 
 

@@ -49,7 +49,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-paper/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[80rem] items-center gap-2 px-4 sm:px-6 lg:px-8">
-        <Brand className="mr-4 text-[18px] font-bold" markClassName="size-7" />
+        <Brand href={user ? "/dashboard" : "/"} className="mr-4 text-[18px] font-bold" markClassName="size-7" />
 
         <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
           {NAV.map(({ href, label }) => (
@@ -119,7 +119,7 @@ export function SiteHeader() {
             </SheetTrigger>
             <SheetContent side="right" className="w-80 gap-0 bg-paper p-0">
               <SheetTitle className="border-b border-rule px-5 py-4">
-                <Brand className="text-[17px] font-bold" />
+                <Brand href={user ? "/dashboard" : "/"} className="text-[17px] font-bold" />
               </SheetTitle>
               <nav className="flex flex-col gap-1 p-3">
                 {[...NAV, { href: "/history", label: "History", Icon: History }, { href: "/how-it-works", label: "How it works", Icon: BookOpen }].map(
