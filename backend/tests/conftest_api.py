@@ -87,7 +87,7 @@ async def clean_db(db_engine):
             text(
                 "TRUNCATE analyses, analysis_events, evidence, usage_ledger, "
                 "watchlists, watchlist_items, credit_transactions, credit_purchases, "
-                "accounts, users, news_chunks, signup_otps "
+                "accounts, users, news_chunks, signup_otps, password_reset_otps "
                 "RESTART IDENTITY CASCADE"
             )
         )

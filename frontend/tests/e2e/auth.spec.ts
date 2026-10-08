@@ -6,7 +6,8 @@ test("sign up lands on the dashboard signed in, then sign out", async ({ page })
   await page.goto("/signup");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("e2e-password-123");
-  await page.getByRole("button", { name: "Create the account" }).click();
+  await page.getByLabel("Confirm password").fill("e2e-password-123");
+  await page.getByRole("button", { name: /continue|create/i }).click();
 
   await expect(page).toHaveURL(/\/dashboard/);
   const header = page.locator("header").first();
@@ -28,7 +29,8 @@ test("signed-in user opening landing page or auth pages redirects to dashboard",
   await page.goto("/signup");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("e2e-password-123");
-  await page.getByRole("button", { name: "Create the account" }).click();
+  await page.getByLabel("Confirm password").fill("e2e-password-123");
+  await page.getByRole("button", { name: /continue|create/i }).click();
 
   await expect(page).toHaveURL(/\/dashboard/);
 

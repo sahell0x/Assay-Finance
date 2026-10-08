@@ -44,11 +44,16 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..core.email_templates import render_otp_email
+from ..core.email_templates import render_otp_email, render_password_reset_otp_email
 from ..core.mail import send_email
-from ..db.models import OAuthAccount, SignupOTP, User
+from ..db.models import OAuthAccount, PasswordResetOTP, SignupOTP, User
 from ..db.session import get_session
-from .schemas import OTPSendRequest, OTPVerifyRequest
+from .schemas import (
+    OTPSendRequest,
+    OTPVerifyRequest,
+    PasswordResetOTPSendRequest,
+    PasswordResetOTPVerifyRequest,
+)
 
 log = logging.getLogger(__name__)
 
@@ -142,32 +147,23 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     ) -> None:
         from urllib.parse import quote
 
+        from ..core.email_templates import render_password_reset_email
         from ..core.mail import send_email
 
         link = f"{settings.frontend_url.rstrip('/')}/reset-password?token={quote(token)}"
         log.info("password reset requested for %s", user.id)
+        text_content, html_content = render_password_reset_email(link, user.email)
         await send_email(
             user.email,
             "Reset your Assay password",
-            (
-                "Someone asked to reset the password for this email address on "
-                "Assay.\n\n"
-                f"To choose a new password, open this link within the next hour:\n{link}\n\n"
-                "If this was not you, you can ignore this email. Your password stays "
-                "the same until you use the link."
-            ),
-            html=(
-                '<div style="font-family:system-ui,sans-serif;font-size:15px;'
-                'line-height:1.6;color:#1c2b26;max-width:480px">'
-                "<p>Someone asked to reset the password for this email address on "
-                "Assay.</p>"
-                f'<p><a href="{link}" style="display:inline-block;background:#123c33;'
-                "color:#fff;padding:11px 20px;border-radius:999px;font-weight:700;text-decoration:none\">"
-                "Choose a new password</a></p>"
-                "<p>The link works for one hour. If this was not you, ignore this email "
-                "&mdash; your password stays the same.</p></div>"
-            ),
+            text_content,
+            html=html_content,
         )
+
+    async def on_after_reset_password(
+        self, user: User, request: Request | None = None
+    ) -> None:
+        log.info("password reset completed for %s", user.id)
 
 
 async def get_user_manager(
@@ -347,7 +343,7 @@ async def send_signup_otp(
     await session.commit()
 
     text_content, html_content = render_otp_email(code, email)
-    subject = f"Your Assay verification code: {code}"
+    subject = f"{code} is your Assay verification code"
     sent = await send_email(to=email, subject=subject, text=text_content, html=html_content)
 
     if not sent and settings.smtp_host:
@@ -486,6 +482,210 @@ async def verify_signup_otp(
     cookie_transport._set_login_cookie(response, token)
 
     return UserRead.model_validate(user)
+
+
+@otp_router.post("/password-reset/otp/send", status_code=200)
+@otp_router.post("/forgot-password/otp/send", status_code=200)
+async def send_password_reset_otp(
+    payload: PasswordResetOTPSendRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate and dispatch a password reset verification code."""
+    email = payload.email.strip().lower()
+
+    user = await session.scalar(
+        select(User).where(func.lower(User.email) == email)
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "USER_NOT_FOUND",
+                "message": "No account found with that email address. Check your spelling or create an account.",
+            },
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "USER_INACTIVE",
+                "message": "This account is inactive. Please contact support.",
+            },
+        )
+
+    recent_otp = await session.scalar(
+        select(PasswordResetOTP)
+        .where(PasswordResetOTP.email == email)
+        .order_by(PasswordResetOTP.created_at.desc())
+        .limit(1)
+    )
+    now = datetime.now(UTC)
+    cooldown = settings.otp_resend_cooldown_seconds
+    if recent_otp:
+        created_at = recent_otp.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        elapsed = (now - created_at).total_seconds()
+        if elapsed < cooldown:
+            remaining = max(1, int(cooldown - elapsed))
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "RATE_LIMITED",
+                    "message": f"Please wait {remaining} seconds before requesting another code.",
+                },
+            )
+
+    code = f"{secrets.randbelow(900000) + 100000:06d}"
+    otp_hash = hashlib.sha256(f"{settings.auth_secret}:{email}:{code}".encode()).hexdigest()
+    expires_at = now + timedelta(minutes=settings.otp_expire_minutes)
+
+    await session.execute(delete(PasswordResetOTP).where(PasswordResetOTP.email == email))
+    new_otp = PasswordResetOTP(
+        email=email,
+        otp_hash=otp_hash,
+        expires_at=expires_at,
+        attempts=0,
+    )
+    session.add(new_otp)
+    await session.commit()
+
+    text_content, html_content = render_password_reset_otp_email(code, email)
+    subject = f"{code} is your Assay password reset code"
+    sent = await send_email(to=email, subject=subject, text=text_content, html=html_content)
+
+    if not sent and settings.smtp_host:
+        log.error("Failed to send password reset email to %s via configured SMTP", email)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "MAIL_DELIVERY_FAILED",
+                "message": "Could not send verification email. Please check your SMTP settings or try again.",
+            },
+        )
+
+    if not settings.smtp_host:
+        log.info("[DEV PASSWORD RESET OTP] Verification code for %s is %s", email, code)
+
+    return {
+        "status": "ok",
+        "message": f"Password reset code sent to {email}.",
+    }
+
+
+@otp_router.post("/password-reset/otp/verify", response_model=UserRead, status_code=200)
+@otp_router.post("/forgot-password/otp/verify", response_model=UserRead, status_code=200)
+async def verify_password_reset_otp(
+    payload: PasswordResetOTPVerifyRequest,
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """Verify password reset OTP and update user's password."""
+    email = payload.email.strip().lower()
+    code = payload.otp.strip()
+    password = payload.password
+
+    user = await session.scalar(
+        select(User).where(func.lower(User.email) == email)
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "USER_NOT_FOUND",
+                "message": "No account found with that email address.",
+            },
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "USER_INACTIVE",
+                "message": "This account is inactive.",
+            },
+        )
+
+    try:
+        await user_manager.validate_password(password, user)
+    except InvalidPasswordException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "RESET_PASSWORD_INVALID_PASSWORD",
+                "message": exc.reason,
+            },
+        ) from exc
+
+    otp_record = await session.scalar(
+        select(PasswordResetOTP)
+        .where(PasswordResetOTP.email == email)
+        .order_by(PasswordResetOTP.created_at.desc())
+        .limit(1)
+    )
+    if not otp_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_NOT_FOUND",
+                "message": "No password reset code requested for this email. Please request a code first.",
+            },
+        )
+
+    now = datetime.now(UTC)
+    expires_at = otp_record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+
+    if expires_at < now:
+        await session.execute(delete(PasswordResetOTP).where(PasswordResetOTP.email == email))
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_EXPIRED",
+                "message": "Verification code has expired. Please request a new one.",
+            },
+        )
+
+    if otp_record.attempts >= 5:
+        await session.execute(delete(PasswordResetOTP).where(PasswordResetOTP.email == email))
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_MAX_ATTEMPTS",
+                "message": "Too many invalid attempts. Please request a new code.",
+            },
+        )
+
+    expected_hash = hashlib.sha256(f"{settings.auth_secret}:{email}:{code}".encode()).hexdigest()
+    if not hmac.compare_digest(otp_record.otp_hash, expected_hash):
+        otp_record.attempts += 1
+        await session.commit()
+        remaining = max(0, 5 - otp_record.attempts)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "OTP_INVALID",
+                "message": f"Incorrect verification code. {remaining} attempt(s) remaining.",
+            },
+        )
+
+    await session.execute(delete(PasswordResetOTP).where(PasswordResetOTP.email == email))
+    await session.commit()
+
+    updated_user = await user_manager._update(user, {"password": password})
+    await user_manager.on_after_reset_password(updated_user, request)
+
+    strategy = get_jwt_strategy()
+    token = await strategy.write_token(updated_user)
+    cookie_transport._set_login_cookie(response, token)
+
+    return UserRead.model_validate(updated_user)
 
 
 @otp_router.post("/register", response_model=UserRead, status_code=201)

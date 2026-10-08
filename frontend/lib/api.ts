@@ -258,6 +258,22 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  sendPasswordResetOtp: (email: string) =>
+    request<{ status: string; message: string }>("/auth/password-reset/otp/send", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  verifyPasswordResetOtp: (payload: {
+    email: string;
+    password: string;
+    otp: string;
+  }) =>
+    request<CurrentUser>("/auth/password-reset/otp/verify", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   /** Always resolves, whether or not the address has an account: telling the two
    *  apart would let anyone check which emails are registered. */
   forgotPassword: (email: string) =>

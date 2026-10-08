@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "Assay <no-reply@localhost>"
+    smtp_reply_to: str = ""
     smtp_starttls: bool = True  # port 587. For port 465 set SMTP_SSL=true instead.
     smtp_ssl: bool = False
     require_email_verification: bool = True

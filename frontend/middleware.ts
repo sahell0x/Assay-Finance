@@ -11,7 +11,10 @@ export function middleware(request: NextRequest) {
   const sessionToken = session?.value?.trim();
   if (sessionToken && sessionToken.length > 0 && sessionToken !== "deleted") {
     if (pathname === "/" || pathname === "/login" || pathname === "/signup") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      url.search = "";
+      return NextResponse.redirect(url);
     }
   }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { api } from "@/lib/api";
@@ -10,7 +9,6 @@ import { api } from "@/lib/api";
  *  to the dashboard.
  */
 export function LandingAuthRedirect() {
-  const router = useRouter();
   const { data: user } = useQuery({
     queryKey: ["me"],
     queryFn: api.me,
@@ -19,9 +17,9 @@ export function LandingAuthRedirect() {
 
   React.useEffect(() => {
     if (user) {
-      router.replace("/dashboard");
+      window.location.replace("/dashboard");
     }
-  }, [user, router]);
+  }, [user]);
 
   return null;
 }

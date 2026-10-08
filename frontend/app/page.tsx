@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
 import { LandingAuthRedirect } from "@/components/landing/auth-redirect";
 import { Capabilities } from "@/components/landing/capabilities";
 import { ClosingCta } from "@/components/landing/closing-cta";
@@ -26,6 +29,12 @@ import { fetchAnalysis, fetchShowcase } from "@/lib/api";
 export const revalidate = 300;
 
 export default async function LandingPage() {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get("era_session")?.value?.trim();
+  if (sessionToken && sessionToken !== "deleted") {
+    redirect("/dashboard");
+  }
+
   const cards = await fetchShowcase(8);
   const first = cards[0] ? await fetchAnalysis(cards[0].id) : null;
 

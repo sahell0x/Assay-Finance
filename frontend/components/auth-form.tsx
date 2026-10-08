@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Loader2, Mail, RefreshCw } from "lucide-react";
+import { ArrowLeft, Check, Eye, EyeOff, Loader2, Mail, RefreshCw } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const queryClient = useQueryClient();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [info, setInfo] = React.useState<string | null>(null);
 
@@ -393,6 +396,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                       setError("Do not use your email address as your password.");
                       return;
                     }
+                    if (!confirmPassword) {
+                      setError("Please confirm your password.");
+                      return;
+                    }
+                    if (password !== confirmPassword) {
+                      setError("Passwords do not match.");
+                      return;
+                    }
                     sendOtpMutation.mutate();
                   } else {
                     loginMutation.mutate();
@@ -416,20 +427,31 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                   <div className="flex items-baseline justify-between gap-3">
                     <Label htmlFor="password">Password</Label>
                     {mode === "login" && (
-                      <Link href="/forgot-password" className="text-small text-primary">
+                      <Link href="/forgot-password" className="text-small text-primary hover:underline">
                         Forgot password?
                       </Link>
                     )}
                   </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                    required
-                    className="mt-1.5 h-11 transition-shadow focus-visible:shadow-float"
-                  />
+                  <div className="relative mt-1.5">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                      required
+                      className="h-11 pr-10 transition-shadow focus-visible:shadow-float"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-ink transition-colors focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                   {mode === "signup" && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-sunk">
@@ -446,6 +468,32 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                     </div>
                   )}
                 </div>
+
+                {mode === "signup" && (
+                  <div>
+                    <Label htmlFor="confirm-password">Confirm password</Label>
+                    <div className="relative mt-1.5">
+                      <Input
+                        id="confirm-password"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                        required
+                        className="h-11 pr-10 transition-shadow focus-visible:shadow-float"
+                      />
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-ink transition-colors focus:outline-none"
+                      >
+                        {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <AnimatePresence initial={false}>
                   {error && (
