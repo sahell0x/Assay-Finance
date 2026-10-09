@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, ShieldCheck } from "lucide-react";
+import { Check, FlaskConical, Loader2, ShieldCheck } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import * as React from "react";
@@ -15,6 +15,13 @@ import { EASE } from "@/components/landing/motion";
 import { PageShell } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -50,6 +57,7 @@ export function CreditsClient() {
   });
 
   const [buying, setBuying] = React.useState<string | null>(null);
+  const [confirmPack, setConfirmPack] = React.useState<CreditPack | null>(null);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["usage"] });
@@ -174,11 +182,69 @@ export function CreditsClient() {
                 }
                 signedOut={signedOut}
                 pending={buying === pack.id}
-                onBuy={() => buy.mutate(pack)}
+                onBuy={() => {
+                  if (shop?.test_mode) {
+                    setConfirmPack(pack);
+                  } else {
+                    buy.mutate(pack);
+                  }
+                }}
               />
             ))}
           </div>
         )}
+
+        <Dialog open={Boolean(confirmPack)} onOpenChange={(open) => !open && setConfirmPack(null)}>
+          <DialogContent className="sm:max-w-[430px] rounded-2xl border border-zinc-800 bg-[#1c1c22] p-6 text-zinc-100 shadow-2xl gap-5">
+            <DialogHeader className="gap-2 text-left">
+              <DialogTitle className="flex items-center gap-2.5 text-[17px] font-semibold text-white">
+                <FlaskConical className="size-5 text-amber-400 shrink-0" aria-hidden />
+                Test mode &mdash; no real money
+              </DialogTitle>
+              <DialogDescription className="text-[13.5px] leading-relaxed text-zinc-400">
+                Payments run in Razorpay test mode &mdash; no real money is charged or accepted. Use Razorpay&rsquo;s test card or UPI details at checkout.
+              </DialogDescription>
+            </DialogHeader>
+
+            {confirmPack && (
+              <div className="rounded-xl border border-zinc-800/80 bg-[#25252d] p-3.5 text-[13px] text-zinc-300">
+                <div className="grid grid-cols-[48px_1fr] items-baseline gap-2">
+                  <span className="text-zinc-400">Card</span>
+                  <div>
+                    <span className="nums font-mono font-medium text-white tracking-wide">4100 2800 0000 1007</span>
+                    <span className="text-zinc-400"> &middot; any future expiry, any CVV</span>
+                  </div>
+                </div>
+                <div className="mt-2.5 grid grid-cols-[48px_1fr] items-baseline gap-2">
+                  <span className="text-zinc-400">UPI</span>
+                  <span className="nums font-mono font-medium text-white">success@razorpay</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-lg border border-zinc-700 bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                onClick={() => setConfirmPack(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="rounded-lg bg-[#ff4612] px-4 font-medium text-white hover:bg-[#ea3a07]"
+                onClick={() => {
+                  const pack = confirmPack;
+                  setConfirmPack(null);
+                  if (pack) buy.mutate(pack);
+                }}
+              >
+                Continue to checkout &bull; {confirmPack ? formatRupees(confirmPack.price_paise) : ""}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </section>
 
       {user && (
@@ -396,8 +462,8 @@ function TestModeNotice({
       <dl className="mt-3 grid gap-x-8 gap-y-1.5 text-small text-ink-soft sm:grid-cols-[auto_1fr]">
         <dt className="font-medium text-ink">Test card</dt>
         <dd className="nums">
-          4111 1111 1111 1111, any future expiry date, any CVV. If a bank page opens,
-          choose Success.
+          4100 2800 0000 1007 (India domestic) or 4111 1111 1111 1111, any future expiry date, any CVV. If a bank page opens,
+          choose Success or enter OTP 123456.
         </dd>
         <dt className="font-medium text-ink">Test UPI</dt>
         <dd className="nums">success@razorpay</dd>

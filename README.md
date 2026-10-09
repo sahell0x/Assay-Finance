@@ -272,7 +272,7 @@ RAZORPAY_WEBHOOK_SECRET=...         # the secret you type when adding the webhoo
 Then add a test-mode webhook in the Razorpay dashboard pointing at
 `https://api.xyz.in/billing/webhook` for the `payment.captured` and `order.paid`
 events, and run `make migrate` (migration `0003` adds the credit tables). To pay, use
-card `4111 1111 1111 1111` with any future expiry and CVV, or the UPI id
+card `4100 2800 0000 1007` (India domestic) or `4111 1111 1111 1111` with any future expiry and CVV, or the UPI id
 `success@razorpay`.
 
 Credits are granted as soon as the browser reports a correctly signed payment, and again
